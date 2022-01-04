@@ -8,8 +8,16 @@
   let cols = 30;
   let settingStart = true;
   let settingEnd = false;
+  let startSet = false;
+  let endSet = false;
   let settingWalls = false;
   let leftMouseButtonOnlyDown = false;
+
+  let startCell, endCell;
+
+  const openList = [];
+
+  const closedList = [];
 
   const gameBoard = [];
 
@@ -18,14 +26,18 @@
   const colsInput = document.getElementById("colsInput");
 
   class Cell {
-    constructor(x, y, start, end) {
+    constructor(x, y) {
       this.x = x;
       this.y = y;
       this.neighbors = [];
       this.wall = false;
       this.path = false;
-      this.start = start;
-      this.end = end;
+      this.start_cell = false;
+      this.end_cell = false;
+      this.distance = 0;
+      this.visited = false;
+      // this.steppedOn = false;
+      // this.distanceMultiplier = 1;
     }
 
     setNeighbors() {
@@ -36,22 +48,44 @@
             if (dirx === 0 && diry === 0) {
               continue;
             }
-            this.neighbors.push([this.x + dirx, this.y + diry]);
+            if (dirx === 0 || diry === 0) {
+              this.neighbors.push([this.x + dirx, this.y + diry, 1]);
+            }
+            else{
+              this.neighbors.push([this.x + dirx, this.y + diry, Math.sqrt(2)]);
+            }
           }
         }
       }
     }
 
+    getLowestDistanceNeighbor() {
+      let low = 9999999;
+      let lowCell = null
+      for (let n of this.neighbors) {
+        let cell = getCell(n[0], n[1]);
+        if (cell.distance < low && cell.visited){
+          low = cell.distance;
+          lowCell = cell;
+        }
+      }
+      return lowCell;
+    }
+
     handleClick() {
       if (settingStart && !gameStarted) {
-        this.start = true;
+        this.start_cell = true;
         getCellElem(this.x, this.y).classList.add("start");
+        startCell = this;
         settingStart = false;
         settingEnd = true;
+        startSet = true;
       } else if (settingEnd && !gameStarted) {
-        this.end = true;
+        this.end_cell = true;
+        endCell = this;
         getCellElem(this.x, this.y).classList.add("end");
         settingEnd = false;
+        endSet = true;
         for (let x = 0; x < cols; x++) {
           for (let y = 0; y < rows; y++) {
             getCellElem(x, y).addEventListener("mouseover", onMouseOver);
@@ -69,6 +103,10 @@
     }
   }
 
+  function getCell(x, y) {
+    return gameBoard[x][y];
+  }
+
   function getCellId(x, y) {
     return "cell-" + x + "-" + y;
   }
@@ -78,31 +116,49 @@
   }
 
   function validPosition(x, y) {
-    return x >= 0 && x < cols + 10 && y >= 0 && y < rows + 10;
+    return x >= 0 && x < cols && y >= 0 && y < rows;
   }
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  // function gameTick() {
-  //   if (!paused && gameStarted) {
-  //     // code here if loop needed
-  //     if (!paused) {
-  //       sleep(gameSpeed).then(() => gameTick());
-  //     }
-  //   }
-  // }
 
   function start() {
+    if (!startSet || !endSet) {
+      return;
+    }
     document.getElementById("start").removeEventListener("click", start);
     document.getElementById("start").disabled = true;
-    for (let x = 0; x < cols; x++) {
-      for (let y = 0; y < rows; y++) {
-        getCellElem(x, y).removeEventListener("mouseover", onMouseOver);
+    gameStarted = true;
+    new_draw_path(getEnd());
+    new_walk_path(getStart());
+  }
+
+  function new_walk_path(root) {
+    console.log(root);
+    if(root.distance === 0) {
+      return;
+    }
+    if(!root.start_cell){
+      getCellElem(root.x, root.y).style.backgroundColor = "cadetblue";
+    }
+    new_walk_path(root.getLowestDistanceNeighbor());
+  }
+
+  function new_draw_path(root) {
+    let q = new Queue();
+    root.visited = true;
+    q.enqueue(root);
+    while(!q.isEmpty()) {
+      let v = q.dequeue();
+      if(v.start_cell){
+        return;
+      }
+      for(let n of v.neighbors){
+        let n_cell = getCell(n[0], n[1]);
+        if(!n_cell.visited && !n_cell.wall) {
+          n_cell.visited = true;
+          n_cell.distance = v.distance + n[2];
+          q.enqueue(n_cell);
+        }
       }
     }
-    gameStarted = true;
   }
 
   function getXYFromCell(cell) {
@@ -129,7 +185,7 @@
       regex.test(e.target.value) &&
       Number(e.target.value) <= 75 &&
       Number(e.target.value) > 0 &&
-      e.target.value != ""
+      e.target.value !== ""
     ) {
       rowsValid = true;
       let elem = document.getElementById("invalidRows");
@@ -159,7 +215,7 @@
       regex.test(e.target.value) &&
       Number(e.target.value) <= 75 &&
       Number(e.target.value) > 0 &&
-      e.target.value != ""
+      e.target.value !== ""
     ) {
       colsValid = true;
       let elem = document.getElementById("invalidCols");
@@ -180,6 +236,28 @@
           );
       }
       colsValid = false;
+    }
+  }
+
+  function getEnd() {
+    for (let x = 0; x < cols; x++) {
+      for (let y = 0; y < rows; y++) {
+        const cell = getCell(x, y);
+        if (cell.end_cell) {
+          return cell;
+        }
+      }
+    }
+  }
+
+  function getStart() {
+    for (let x = 0; x < cols; x++) {
+      for (let y = 0; y < rows; y++) {
+        const cell = getCell(x, y);
+        if (cell.start_cell) {
+          return cell;
+        }
+      }
     }
   }
 
@@ -226,4 +304,31 @@
     rowsInput.value = "30";
     document.getElementById("start").disabled = true;
   })();
+
+  class Queue {
+    constructor() {
+      this.elements = [];
+    }
+  }
+
+  Queue.prototype.enqueue = function (e) {
+    this.elements.push(e);
+  };
+
+  Queue.prototype.dequeue = function () {
+    return this.elements.shift();
+  };
+
+  Queue.prototype.isEmpty = function () {
+    return this.elements.length === 0;
+  };
+
+  Queue.prototype.peek = function () {
+    return !this.isEmpty() ? this.elements[0] : undefined;
+  };
+
+  Queue.prototype.length = function() {
+    return this.elements.length;
+  }
+
 })();
