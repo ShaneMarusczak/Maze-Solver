@@ -14,18 +14,18 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
     <link rel="manifest" href="site.webmanifest" /> -->
-    <script src="js/mazeSolver.min.js" defer></script>
+    <script src="js/mazeSolver.js" defer></script>
     <title>Maze Solver</title>
   </head>
   <body>
     <header id="header-tag">
       <h1>Maze Solver</h1>
-      <p id="updateText" title="12:13 PM">Last Updated: January 4, 2022</p>
+      <p id="updateText" title="8:12 PM">Last Updated: January 4, 2022</p>
       <a
         id="homeLink"
         href="https://marusczak.com/Games-Home-Page"
         rel="noreferrer"
-        ><img id="homeIcon" src="images/house-icon.png"
+        ><img id="homeIcon" src="images/house-icon.png" alt="home link"
       /></a>
 
       <a
@@ -33,10 +33,10 @@
         href="https://github.com/ShaneMarusczak/Maze-Solver"
         target="_blank"
         rel="noreferrer"
-        ><img id="githubicon" src="images/github-icon.png"
+        ><img id="githubicon" src="images/github-icon.png" alt="github link"
       /></a>
     </header>
-    <menu>
+    <div id="menu">
       <div>
         <label for="rowsInput" class="textInputLabel">Rows:</label>
         <input type="text" id="rowsInput" name="rows" value="30" />
@@ -50,7 +50,9 @@
         Start
       </button>
       <button type="button" onclick="location.reload()">Reload</button>
-    </menu>
+      <label for="visualization_mode" id="vis_label">Visualization Mode</label>
+      <input type="checkbox" id="visualization_mode" />
+    </div>
     <div class="gameBoardWrapper">
       <div id="gameBoard_UI" class="shadowBox"></div>
     </div>

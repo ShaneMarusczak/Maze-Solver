@@ -17,7 +17,7 @@ header {
   margin: 10px;
 }
 
-menu {
+#menu {
   display: flex;
   flex-direction: row;
   justify-content: space-around;
@@ -79,8 +79,8 @@ p {
 }
 
 .cell {
-  height: 17px;
-  width: 17px;
+  height: 25px;
+  width: 25px;
   border: 1px dimgrey solid;
   background-color: rgb(201, 201, 201, 0.4);
 }
