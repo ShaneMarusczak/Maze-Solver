@@ -1,15 +1,20 @@
 (function () {
   let gameStarted = false;
+
   let rowsValid = true;
   let colsValid = true;
   let gridBuilt = false;
+
   let gameSpeed = 200;
+
   let rows = 30;
   let cols = 30;
+
   let settingStart = true;
   let settingEnd = false;
   let startSet = false;
   let endSet = false;
+
   let leftMouseButtonOnlyDown = false;
 
   let visualization_mode = false;
@@ -22,8 +27,6 @@
   const rowsInput = document.getElementById("rowsInput");
   const colsInput = document.getElementById("colsInput");
 
-  const distance = (x1, y1, x2, y2) => Math.sqrt( ((x2 - x1) * (x2 - x1)) + ((y2 - y1)*(y2 - y1)));
-
   class Cell {
     constructor(x, y) {
       this.x = x;
@@ -32,51 +35,40 @@
       this.wall = false;
       this.path = false;
       this.start_cell = false;
-      this.end_cell = false;
       this.distance = 0;
       this.visited = false;
     }
 
     setNeighbors() {
       const dirs = [-1, 0, 1];
-      for (let dirx of dirs) {
-        for (let diry of dirs) {
-          if (validPosition(this.x + dirx, this.y + diry)) {
-            if (dirx === 0 && diry === 0) {
+      for (let dir_x of dirs) {
+        for (let dir_y of dirs) {
+          if (validPosition(this.x + dir_x, this.y + dir_y)) {
+            if (dir_x === 0 && dir_y === 0) {
               continue;
             }
-            if (dirx === 0 || diry === 0) {
-              this.neighbors.push([this.x + dirx, this.y + diry, 1]);
+            if (dir_x === 0 || dir_y === 0) {
+              this.neighbors.push([this.x + dir_x, this.y + dir_y, 1]);
             }
             else{
-              // this.neighbors.push([this.x + dirx, this.y + diry, 1]);
-              this.neighbors.push([this.x + dirx, this.y + diry, Math.sqrt(2)]);
-
+              this.neighbors.push([this.x + dir_x, this.y + dir_y, Math.sqrt(2)]);
             }
           }
         }
       }
     }
 
-    getCrowFlyDistance() {
-      let end = getEnd();
-      return distance(this.x, this.y, end.x, end.y);
-    }
-
-    getLowestDistanceNeighbors() {
+    getLowestDistanceNeighbor() {
       let low = Infinity;
-      let rv = [];
+      let lowCell = null
       for (let n of this.neighbors) {
         let cell = getCell(n[0], n[1]);
         if (cell.distance < low && cell.visited){
-          rv = [];
-          rv.push(cell);
           low = cell.distance;
-        } else if (cell.distance === low && cell.visited){
-          rv.push(cell);
+          lowCell = cell;
         }
       }
-      return rv;
+      return lowCell;
     }
 
     handleClick() {
@@ -88,7 +80,6 @@
         settingEnd = true;
         startSet = true;
       } else if (settingEnd && !gameStarted) {
-        this.end_cell = true;
         endCell = this;
         getCellElem(this.x, this.y).classList.add("end");
         settingEnd = false;
@@ -140,39 +131,30 @@
     document.getElementById("vis_label").classList.add("hidden");
     gameStarted = true;
 
-    new_draw_path(getEnd());
+    new_draw_path(endCell);
     if (visualization_mode){
-      sleep(rows * cols * 3).then(() => new_walk_path(getStart()));
+      sleep(rows * cols * 2.5).then(() => new_walk_path(startCell));
     }
     else {
-      new_walk_path(getStart());
+      new_walk_path(startCell);
     }
 
   }
 
   function new_walk_path(root) {
+    root.path = true;
     if(root.distance === 0 && !root.start_cell) {
       return;
     }
     if(!root.start_cell){
       getCellElem(root.x, root.y).style.backgroundColor = "cadetblue";
     }
-    let lowest_neighbors = root.getLowestDistanceNeighbors();
-
-    let next_cell = null;
-    let best_crow_distance = Infinity;
-    for (let l_n of lowest_neighbors) {
-      if(l_n.getCrowFlyDistance() < best_crow_distance) {
-        next_cell = l_n;
-        best_crow_distance = l_n.getCrowFlyDistance();
-      }
-    }
 
     if (visualization_mode){
-      sleep(gameSpeed).then(() => new_walk_path(next_cell));
+      sleep(gameSpeed).then(() => new_walk_path(root.getLowestDistanceNeighbor()));
     }
     else {
-      new_walk_path(lowest_neighbors[0]);
+      new_walk_path(root.getLowestDistanceNeighbor());
     }
 
   }
@@ -292,28 +274,6 @@
           );
       }
       colsValid = false;
-    }
-  }
-
-  function getEnd() {
-    for (let x = 0; x < cols; x++) {
-      for (let y = 0; y < rows; y++) {
-        const cell = getCell(x, y);
-        if (cell.end_cell) {
-          return cell;
-        }
-      }
-    }
-  }
-
-  function getStart() {
-    for (let x = 0; x < cols; x++) {
-      for (let y = 0; y < rows; y++) {
-        const cell = getCell(x, y);
-        if (cell.start_cell) {
-          return cell;
-        }
-      }
     }
   }
 
