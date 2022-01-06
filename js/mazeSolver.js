@@ -1,4 +1,8 @@
 (function () {
+  //TODO: FIX THE DIAGONAL MOVE AT WALL CORNERS, CHECK FOR PAIRS OF NEIGHBORS BEING WALLS (i.e. North && East + 3 MORE),
+  // IF PATTERN MET, TREAT DIAGONAL CELL BETWEEN THE DIRECTIONS (i.e NE from above) LIKE A WALL
+
+  //TODO: MAKE WALLS BETTER, STOP ALL DRAG EVENTS, DOUBLE CLICK ON A CELL TO ERASE
   let gameStarted = false;
 
   let rowsValid = true;
@@ -47,11 +51,12 @@
             if (dir_x === 0 && dir_y === 0) {
               continue;
             }
+            let cardinal_direction = getCellConnectionDirection(this.x, this.y, this.x + dir_x, this.y + dir_y);
             if (dir_x === 0 || dir_y === 0) {
-              this.neighbors.push([this.x + dir_x, this.y + dir_y, 1]);
+              this.neighbors.push([this.x + dir_x, this.y + dir_y, 1, cardinal_direction]);
             }
             else{
-              this.neighbors.push([this.x + dir_x, this.y + dir_y, Math.sqrt(2)]);
+              this.neighbors.push([this.x + dir_x, this.y + dir_y, Math.sqrt(2), cardinal_direction]);
             }
           }
         }
@@ -92,6 +97,34 @@
       }
     }
   }
+
+  function getCellConnectionDirection(base_x, base_y, n_x, n_y) {
+    if (n_x === base_x && n_y < base_y) {
+      return 1;
+    }
+    else if (n_x > base_x && n_y < base_y) {
+      return 2;
+    }
+    else if (n_x > base_x && n_y === base_y) {
+      return 3;
+    }
+    else if (n_x > base_x && n_y > base_y) {
+      return 4;
+    }
+    else if (n_x === base_x && n_y > base_y) {
+      return 5;
+    }
+    else if (n_x < base_x && n_y > base_y) {
+      return 6;
+    }
+    else if (n_x < base_x && n_y === base_y) {
+      return 7;
+    }
+    else {
+      return 8;
+    }
+  }
+
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -169,6 +202,18 @@
       let v = q.dequeue();
       for(let n of v.neighbors){
         let n_cell = getCell(n[0], n[1]);
+        if (n[3] === 2 && checkCorner(1,3, v)) {
+          continue;
+        }
+        else if (n[3] === 4 && checkCorner(3, 5, v)) {
+          continue;
+        }
+        else if (n[3] === 6 && checkCorner(5, 7, v)) {
+          continue;
+        }
+        else if (n[3] === 8 && checkCorner(7, 1, v)) {
+          continue;
+        }
         if(n_cell.start_cell){
           return;
         }
@@ -197,6 +242,24 @@
         }
       }
     }
+  }
+
+  function  checkCorner(n_1, n_2, base) {
+    let cell_1 = null;
+    let cell_2 = null;
+    for(let n of base.neighbors) {
+      if (n[3] === n_1) {
+        cell_1 = getCell(n[0], n[1]);
+      }
+      if (n[3] === n_2) {
+        cell_2 = getCell(n[0], n[1]);
+      }
+    }
+    if (cell_1 === null || cell_2 === null) {
+      return false;
+    }
+    return !!(cell_1.wall || cell_2.wall);
+
   }
 
   function getXYFromCell(cell) {
