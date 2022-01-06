@@ -96,6 +96,13 @@
         }
       }
     }
+
+    handleDoubleClick() {
+      if(this.wall){
+        this.wall = false;
+        getCellElem(this.x, this.y).classList.remove("wall");
+      }
+    }
   }
 
   function getCellConnectionDirection(base_x, base_y, n_x, n_y) {
@@ -365,6 +372,7 @@
         cell.classList.add("cell");
         col.appendChild(cell);
         cell.addEventListener("click", () => newCell.handleClick());
+        cell.addEventListener("dblclick", () => newCell.handleDoubleClick());
       }
     }
   }
