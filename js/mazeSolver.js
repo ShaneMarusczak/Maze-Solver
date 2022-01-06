@@ -1,7 +1,4 @@
 (function () {
-  //TODO: FIX THE DIAGONAL MOVE AT WALL CORNERS, CHECK FOR PAIRS OF NEIGHBORS BEING WALLS (i.e. North && East + 3 MORE),
-  // IF PATTERN MET, TREAT DIAGONAL CELL BETWEEN THE DIRECTIONS (i.e NE from above) LIKE A WALL
-
   //TODO: MAKE WALLS BETTER, STOP ALL DRAG EVENTS, DOUBLE CLICK ON A CELL TO ERASE
   let gameStarted = false;
 
@@ -206,29 +203,33 @@
     q.enqueue(root);
     while(!q.isEmpty()) {
       time++;
-      let v = q.dequeue();
-      for(let n of v.neighbors){
+      let cell = q.dequeue();
+      for(let n of cell.neighbors.reverse()){
         let n_cell = getCell(n[0], n[1]);
-        if (n[3] === 2 && checkCorner(1,3, v)) {
+        if (n[3] === 2 && checkCorner(1,3, cell, 2)) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
           continue;
         }
-        else if (n[3] === 4 && checkCorner(3, 5, v)) {
+        else if (n[3] === 4 && checkCorner(3, 5, cell, 4)) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
           continue;
         }
-        else if (n[3] === 6 && checkCorner(5, 7, v)) {
+        else if (n[3] === 6 && checkCorner(5, 7, cell, 6)) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
           continue;
         }
-        else if (n[3] === 8 && checkCorner(7, 1, v)) {
+        else if (n[3] === 8 && checkCorner(7, 1, cell, 8)) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
           continue;
         }
         if(n_cell.start_cell){
           return;
         }
-        if (n_cell.distance > v.distance + n[2] && n_cell.visited){
-          n_cell.distance = v.distance + n[2];
+        if (n_cell.distance > cell.distance + n[2] && n_cell.visited){
+          n_cell.distance = cell.distance + n[2];
           if (visualization_mode) {
             sleep(time * 3).then(() => {
-              getCellElem(n_cell.x, n_cell.y).textContent = (v.distance + n[2]).toString().substr(0, 5);
+              getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n[2]).toString().substr(0, 5);
             });
           }
 
@@ -237,36 +238,45 @@
         if(!n_cell.visited && !n_cell.wall) {
           n_cell.visited = true;
           n_cell.distance_cache = n_cell.distance;
-          n_cell.distance = v.distance + n[2];
+          n_cell.distance = cell.distance + n[2];
           if (visualization_mode) {
             sleep(time * 2).then(() => {
-              getCellElem(n_cell.x, n_cell.y).textContent = (v.distance + n[2]).toString().substr(0, 5);
+              getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n[2]).toString().substr(0, 5);
               getCellElem(n_cell.x, n_cell.y).style.backgroundColor = "orange";
             });
           }
           getCellElem(n_cell.x, n_cell.y).style.fontSize = "8px";
-          q.enqueue(n_cell);
+          if (!n_cell.wall) {
+            q.enqueue(n_cell);
+          }
         }
       }
     }
   }
 
-  function  checkCorner(n_1, n_2, base) {
+  function  checkCorner(n_1, n_2, c, d) {
     let cell_1 = null;
     let cell_2 = null;
-    for(let n of base.neighbors) {
+    let cell_d = null;
+    for(let n of c.neighbors) {
       if (n[3] === n_1) {
         cell_1 = getCell(n[0], n[1]);
       }
       if (n[3] === n_2) {
         cell_2 = getCell(n[0], n[1]);
       }
+      if (n[3] === d) {
+        cell_d = getCell(n[0], n[1])
+      }
     }
-    if (cell_1 === null || cell_2 === null) {
+    if (cell_1 === null || cell_2 === null || cell_d == null) {
       return false;
     }
-    return !!(cell_1.wall || cell_2.wall);
+    if(cell_1.wall && cell_2.wall)  {
+      return !cell_d.wall;
 
+    }
+    return false;
   }
 
   function getXYFromCell(cell) {
@@ -373,6 +383,10 @@
         col.appendChild(cell);
         cell.addEventListener("click", () => newCell.handleClick());
         cell.addEventListener("dblclick", () => newCell.handleDoubleClick());
+        cell.draggable = false;
+        cell.ondragstart = function () {
+          return false;
+        };
       }
     }
   }
