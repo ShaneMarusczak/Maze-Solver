@@ -64,11 +64,6 @@
       }
     }
 
-    resetNeighbors() {
-      this.neighbors = [];
-      this.setNeighbors();
-    }
-
     getLowestDistanceNeighbor() {
       let low = Infinity;
       let lowCell = null
@@ -191,7 +186,6 @@
         to_check.path = false;
         to_check.visited = false;
         to_check.distance = 0;
-        to_check.resetNeighbors();
         to_check_elem.textContent = "";
         if(!to_check.start_cell) {
           to_check_elem.style.backgroundColor = "rgb(201, 201, 201, 0.4)";
