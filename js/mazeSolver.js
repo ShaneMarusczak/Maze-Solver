@@ -145,8 +145,12 @@
   function onMouseOver(e) {
     if (leftMouseButtonOnlyDown && !gameStarted) {
       let [x, y] = getXYFromCell(e.target);
-      gameBoard[x][y].wall = true;
-      getCellElem(x, y).classList.add("wall");
+      let cell = getCell(x, y);
+      if (cell.start_cell || cell.end_cell || cell.wall) {
+        return;
+      }
+      cell.wall = true;
+      e.target.classList.add("wall");
     }
   }
 
@@ -310,7 +314,7 @@
           let elem = getCellElem(n_cell.x, n_cell.y);
           let color_string = "rgb(50," + (175 - (Math.floor(n_cell.distance))) + "," + (100 - (Math.floor(n_cell.distance))) +")";
           if (mouse_mode && !n_cell.start_cell) {
-            elem.style.backgroundColor = color_string;
+            // elem.style.backgroundColor = color_string;
           }
           else if (visualization_mode && !n_cell.start_cell) {
             sleep(time * 2).then(() => {
@@ -324,7 +328,8 @@
         }
       }
     }
-    // startLocated = false;
+    //TODO: how to reset start located if it fails on a mouse move?
+    //startLocated = false;
   }
 
   function checkCorner(n_1, n_2, c, d) {
