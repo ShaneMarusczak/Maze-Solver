@@ -45,6 +45,7 @@
     }
 
     setNeighbors() {
+      this.neighbors = [];
       const dirs = [-1, 0, 1];
       for (let dir_x of dirs) {
         for (let dir_y of dirs) {
@@ -100,9 +101,32 @@
     }
 
     handleDoubleClick() {
+      if (visualization_mode) {
+        return;
+      }
+      let elem = getCellElem(this.x, this.y);
       if(this.wall){
         this.wall = false;
-        getCellElem(this.x, this.y).classList.remove("wall");
+        elem.classList.remove("wall");
+        resetSignal(true);
+        this.end_cell = true;
+        elem.classList.add("end");
+        endCell = this;
+        draw_path(endCell);
+        if (startLocated) {
+          walk_path(startCell);
+        }
+      }
+      else {
+        this.wall = true;
+        elem.classList.add("wall");
+        this.end_cell = false;
+        elem.classList.remove("end");
+        let {x, y} = this.neighbors.find(n => getCell(n.x, n.y).path);
+        getCell(x, y).path = false;
+        getCellElem(x, y).classList.remove("path");
+        getCell(x, y).end_cell = true;
+        getCellElem(x, y).classList.add("end");
       }
     }
   }
@@ -169,13 +193,8 @@
   function validPosition(x, y) {
     return x >= 0 && x < cols && y >= 0 && y < rows;
   }
-  function moveEndCellToMouse(e) {
-    let cell_elem = e.target;
-    let [x, y] = getXYFromCell(cell_elem);
-    let cell = getCell(x, y);
-    if (cell.wall || cell.start_cell || !cell.visited) {
-      return;
-    }
+
+  function resetSignal(resetNeighbors) {
     for(let x = 0; x < rows; x++) {
       for(let y = 0; y < cols; y++) {
         let to_check = getCell(x, y);
@@ -183,21 +202,31 @@
         if (to_check.wall) {
           continue;
         }
-        if(to_check.end_cell) {
-          to_check.end_cell = false;
-          to_check_elem.classList.remove("end");
-        }
+        to_check.end_cell = false;
+        to_check_elem.classList.remove("end");
         to_check.path = false;
+        to_check_elem.classList.remove("path");
         to_check.visited = false;
         to_check.distance = 0;
         to_check_elem.textContent = "";
-        if(!to_check.start_cell) {
-          to_check_elem.style.backgroundColor = "rgb(201, 201, 201, 0.4)";
+        if (resetNeighbors) {
+          to_check.setNeighbors();
         }
       }
     }
-    cell_elem.style.backgroundColor = "blue";
+  }
+
+  function moveEndCellToMouse(e) {
+    let cell_elem = e.target;
+    let [x, y] = getXYFromCell(cell_elem);
+    let cell = getCell(x, y);
+    if (cell.wall || cell.start_cell || !cell.visited) {
+      return;
+    }
+    resetSignal(false);
     cell.end_cell = true;
+    cell_elem.classList.add("end");
+
     endCell = cell;
 
     draw_path(endCell);
@@ -230,13 +259,22 @@
     gameStarted = true;
 
     draw_path(endCell);
-    fillInGaps();
+    // fillInGaps();
+    disableHover();
     if (startLocated) {
       if (visualization_mode){
         sleep(rows * cols * 2.5).then(() => walk_path(startCell));
       }
       else {
         walk_path(startCell);
+      }
+    }
+  }
+
+  function disableHover() {
+    for(let x = 0; x < rows; x++) {
+      for (let y = 0; y < cols; y++) {
+        getCellElem(x, y).classList.remove("cell_hover");
       }
     }
   }
@@ -255,11 +293,12 @@
 
   function walk_path(root) {
     root.path = true;
-    if(root.distance === 0 && !root.start_cell) {
+    if(root.distance === 0) {
       return;
     }
     if(!root.start_cell){
-      getCellElem(root.x, root.y).style.backgroundColor = "rgb(25,25,112)";
+      getCellElem(root.x, root.y).classList.remove("visited");
+      getCellElem(root.x, root.y).classList.add("path");
     }
 
     if (visualization_mode && !mouse_mode){
@@ -298,7 +337,6 @@
         }
         if(n_cell.start_cell){
           startLocated = true;
-          // return;
         }
         if (n_cell.distance > cell.distance + n.connection_cost && n_cell.visited){
           n_cell.distance = cell.distance + n.connection_cost;
@@ -312,14 +350,10 @@
           n_cell.visited = true;
           n_cell.distance = cell.distance + n.connection_cost;
           let elem = getCellElem(n_cell.x, n_cell.y);
-          let color_string = "rgb(50," + (175 - (Math.floor(n_cell.distance))) + "," + (100 - (Math.floor(n_cell.distance))) +")";
-          if (mouse_mode && !n_cell.start_cell) {
-            // elem.style.backgroundColor = color_string;
-          }
-          else if (visualization_mode && !n_cell.start_cell) {
+          if (visualization_mode && !n_cell.start_cell) {
             sleep(time * 2).then(() => {
               elem.textContent = (cell.distance + n.connection_cost).toString().substr(0, 5);
-              elem.style.backgroundColor = color_string;
+              elem.classList.add("visited");
             });
           }
           if (!n_cell.wall) {
@@ -328,8 +362,6 @@
         }
       }
     }
-    //TODO: how to reset start located if it fails on a mouse move?
-    //startLocated = false;
   }
 
   function checkCorner(n_1, n_2, c, d) {
@@ -460,7 +492,7 @@
         const cell = document.createElement("div");
         cell.id = getCellId(x, y);
         cell.classList.add("cell");
-
+        cell.classList.add("cell_hover");
         if (cols * rows < 25 * 25) {
             cell.classList.add("large_cell");
         }
