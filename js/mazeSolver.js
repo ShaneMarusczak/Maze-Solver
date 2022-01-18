@@ -101,7 +101,8 @@
     }
 
     handleDoubleClick() {
-      if (visualization_mode) {
+      //TODO: Make this work for non-mouse mode
+      if (!mouse_mode) {
         return;
       }
       let elem = getCellElem(this.x, this.y);
