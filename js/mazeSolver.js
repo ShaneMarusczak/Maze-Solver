@@ -78,44 +78,53 @@
       return lowCell;
     }
 
-    handleClick() {
-      if (settingStart && !gameStarted) {
-        this.start_cell = true;
-        getCellElem(this.x, this.y).classList.add("start");
-        startCell = this;
-        settingStart = false;
-        settingEnd = true;
-        startSet = true;
-      } else if (settingEnd && !gameStarted) {
-        endCell = this;
-        this.end_cell = true;
-        getCellElem(this.x, this.y).classList.add("end");
-        settingEnd = false;
-        endSet = true;
-        for (let x = 0; x < cols; x++) {
-          for (let y = 0; y < rows; y++) {
-            getCellElem(x, y).addEventListener("mouseover", onMouseOver);
+    handleClick(e) {
+
+      if (e.button === 0) {
+        if (settingStart && !gameStarted) {
+          this.start_cell = true;
+          getCellElem(this.x, this.y).classList.add("start");
+          startCell = this;
+          settingStart = false;
+          settingEnd = true;
+          startSet = true;
+        } else if (settingEnd && !gameStarted) {
+          endCell = this;
+          this.end_cell = true;
+          getCellElem(this.x, this.y).classList.add("end");
+          settingEnd = false;
+          endSet = true;
+          for (let x = 0; x < cols; x++) {
+            for (let y = 0; y < rows; y++) {
+              getCellElem(x, y).addEventListener("mouseover", onMouseOver);
+            }
           }
         }
+      } else if(e.button === 2) {
+        this.handleRightClick();
       }
+
+
     }
 
-    handleDoubleClick() {
+    handleRightClick() {
       //TODO: Make this work for non-mouse mode
-      if (!mouse_mode) {
+      if (!mouse_mode || !gameStarted) {
         return;
       }
       let elem = getCellElem(this.x, this.y);
       if(this.wall){
         this.wall = false;
         elem.classList.remove("wall");
-        resetSignal(true);
-        this.end_cell = true;
-        elem.classList.add("end");
-        endCell = this;
-        draw_path(endCell);
-        if (startLocated) {
-          walk_path(startCell);
+        if(this.neighbors.filter(n => tempFilter(n)).length > 0) {
+          resetSignal(true);
+          this.end_cell = true;
+          elem.classList.add("end");
+          endCell = this;
+          draw_path(endCell);
+          if (startLocated) {
+            walk_path(startCell);
+          }
         }
       }
       else {
@@ -130,6 +139,12 @@
         getCellElem(x, y).classList.add("end");
       }
     }
+  }
+
+  function tempFilter(n) {
+    let is_not_wall = !getCell(n.x, n.y).wall;
+    let is_hor_neighbor = n.direction === "N" || n.direction === "E" || n.direction === "S" || n.direction === "W";
+    return is_not_wall && is_hor_neighbor;
   }
 
   function build_neighbor(x, y, connection_cost, direction) {
@@ -508,8 +523,7 @@
         }
 
         col.appendChild(cell);
-        cell.addEventListener("click", () => newCell.handleClick());
-        cell.addEventListener("dblclick", () => newCell.handleDoubleClick());
+        cell.addEventListener("mouseup", (e) => newCell.handleClick(e));
         cell.draggable = false;
         cell.ondragstart = function () {
           return false;
@@ -557,6 +571,11 @@
     colsInput.value = "30";
     rowsInput.value = "30";
     document.getElementById("start").disabled = true;
+    document.oncontextmenu = () => false;
+    document.draggable = false;
+    document.ondragstart = function () {
+      return false;
+    }
 
     gameBoard_UI.draggable = false;
     gameBoard_UI.ondragstart = function () {
