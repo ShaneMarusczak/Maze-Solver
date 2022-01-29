@@ -42,6 +42,7 @@
       this.end_cell = false;
       this.distance = 0;
       this.visited = false;
+      this.checked = false;
     }
 
     setNeighbors() {
@@ -109,6 +110,7 @@
 
     handleRightClick() {
       //TODO: Make this work for non-mouse mode
+      resetChecked();
       if (!mouse_mode || !gameStarted) {
         return;
       }
@@ -116,7 +118,7 @@
       if(this.wall){
         this.wall = false;
         elem.classList.remove("wall");
-        if(this.neighbors.filter(n => tempFilter(n)).length > 0) {
+        if(this.neighbors.filter(n => tempFilter(n)).length > 0 && path_exists(this)) {
           resetSignal(true);
           this.end_cell = true;
           elem.classList.add("end");
@@ -129,14 +131,18 @@
       }
       else {
         this.wall = true;
+        this.path = false;
         elem.classList.add("wall");
         this.end_cell = false;
         elem.classList.remove("end");
-        let {x, y} = this.neighbors.find(n => getCell(n.x, n.y).path);
-        getCell(x, y).path = false;
-        getCellElem(x, y).classList.remove("path");
-        getCell(x, y).end_cell = true;
-        getCellElem(x, y).classList.add("end");
+        if(path_exists(this)){
+          let {x, y} = this.neighbors.find(n => getCell(n.x, n.y).path);
+          getCell(x, y).path = false;
+          getCellElem(x, y).classList.remove("path");
+          getCell(x, y).end_cell = true;
+          getCellElem(x, y).classList.add("end");
+        }
+
       }
     }
   }
@@ -191,6 +197,7 @@
       }
       cell.wall = true;
       e.target.classList.add("wall");
+      // cell.neighbors = [];
     }
   }
 
@@ -210,17 +217,25 @@
     return x >= 0 && x < cols && y >= 0 && y < rows;
   }
 
+  function resetChecked() {
+    for(let x = 0; x < rows; x++) {
+      for(let y = 0; y < cols; y++) {
+        getCell(x, y).checked = false;
+      }
+    }
+  }
+
   function resetSignal(resetNeighbors) {
     for(let x = 0; x < rows; x++) {
       for(let y = 0; y < cols; y++) {
         let to_check = getCell(x, y);
         let to_check_elem = getCellElem(x, y);
+        to_check.path = false;
         if (to_check.wall) {
           continue;
         }
         to_check.end_cell = false;
         to_check_elem.classList.remove("end");
-        to_check.path = false;
         to_check_elem.classList.remove("path");
         to_check.visited = false;
         to_check.distance = 0;
@@ -236,7 +251,7 @@
     let cell_elem = e.target;
     let [x, y] = getXYFromCell(cell_elem);
     let cell = getCell(x, y);
-    if (cell.wall || cell.start_cell || !cell.visited) {
+    if (cell.wall || cell.start_cell ) {
       return;
     }
     resetSignal(false);
@@ -275,7 +290,9 @@
     gameStarted = true;
 
     draw_path(endCell);
-    // fillInGaps();
+    if (!visualization_mode && !mouse_mode) {
+      fillInGaps();
+    }
     disableHover();
     if (startLocated) {
       if (visualization_mode){
@@ -324,6 +341,32 @@
       walk_path(root.getLowestDistanceNeighbor());
     }
   }
+
+
+  function path_exists(root) {
+    let q = new Queue();
+    root.checked = true;
+    q.enqueue(root);
+    while(!q.isEmpty()) {
+      let cell = q.dequeue();
+      for(let n of cell.neighbors.reverse()){
+        let n_cell = getCell(n.x, n.y);
+        if(n_cell.start_cell){
+          return true;
+        }
+        if(!n_cell.checked && !n_cell.wall) {
+          n_cell.checked = true;
+          if (!n_cell.wall) {
+            q.enqueue(n_cell);
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+
+
 
   function draw_path(root) {
     let time = 1;
@@ -538,29 +581,24 @@
 
     document.getElementById("visualization_mode").addEventListener("input", () => {
       visualization_mode = !visualization_mode;
+
+      if (visualization_mode) {
+        document.getElementById("mouse_mode").checked = false;
+        mouse_mode = false;
+      }
     });
     
-    visualization_mode = document.getElementById("visualization_mode").checked;
+    document.getElementById("visualization_mode").checked = false;
 
     document.getElementById("mouse_mode").addEventListener("input", () => {
       mouse_mode = !mouse_mode;
       if (mouse_mode) {
-        document.getElementById("visualization_mode").disabled = true;
         document.getElementById("visualization_mode").checked = false;
         visualization_mode = false;
       }
-      else {
-        document.getElementById("visualization_mode").disabled = false;
-      }
     });
 
-    mouse_mode = document.getElementById("mouse_mode").checked;
-
-    if(mouse_mode) {
-      document.getElementById("visualization_mode").disabled = true;
-      document.getElementById("visualization_mode").checked = false;
-      visualization_mode = false;
-    }
+    document.getElementById("mouse_mode").checked = false;
 
     document.body.onmousedown = setLeftButtonState;
     document.body.onmousemove = setLeftButtonState;
