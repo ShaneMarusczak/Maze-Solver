@@ -79,82 +79,35 @@
       return lowCell;
     }
 
-    handleClick(e) {
-
-      if (e.button === 0) {
-        if (settingStart && !gameStarted) {
-          this.start_cell = true;
-          getCellElem(this.x, this.y).classList.add("start");
-          startCell = this;
-          settingStart = false;
-          settingEnd = true;
-          startSet = true;
-        } else if (settingEnd && !gameStarted) {
-          endCell = this;
-          this.end_cell = true;
-          getCellElem(this.x, this.y).classList.add("end");
-          settingEnd = false;
-          endSet = true;
-          for (let x = 0; x < cols; x++) {
-            for (let y = 0; y < rows; y++) {
-              getCellElem(x, y).addEventListener("mouseover", onMouseOver);
-            }
-          }
-        }
-      } else if(e.button === 2) {
-        this.handleRightClick();
-      }
-
-
-    }
-
-    handleRightClick() {
-      //TODO: Make this work for non-mouse mode
-      resetChecked();
-      if (!mouse_mode || !gameStarted) {
-        return;
-      }
-      let elem = getCellElem(this.x, this.y);
-      if(this.wall){
-        this.wall = false;
-        elem.classList.remove("wall");
-        if(this.neighbors.filter(n => tempFilter(n)).length > 0 && path_exists(this)) {
-          resetSignal(true);
-          this.end_cell = true;
-          elem.classList.add("end");
-          endCell = this;
-          draw_path(endCell);
-          if (startLocated) {
-            walk_path(startCell);
+    handleClick() {
+      if (settingStart && !gameStarted) {
+        this.start_cell = true;
+        getCellElem(this.x, this.y).classList.add("start");
+        startCell = this;
+        settingStart = false;
+        settingEnd = true;
+        startSet = true;
+        document.getElementById("startMessage").classList.add("hidden");
+        document.getElementById("endMessage").classList.remove("hidden");
+      } else if (settingEnd && !gameStarted) {
+        endCell = this;
+        this.end_cell = true;
+        getCellElem(this.x, this.y).classList.add("end");
+        settingEnd = false;
+        endSet = true;
+        document.getElementById("endMessage").classList.add("hidden");
+        document.getElementById("wallMessage").classList.remove("hidden");
+        for (let x = 0; x < cols; x++) {
+          for (let y = 0; y < rows; y++) {
+            getCellElem(x, y).addEventListener("mouseover", onMouseOver);
           }
         }
       }
-      else {
-        this.wall = true;
-        this.path = false;
-        elem.classList.add("wall");
-        this.end_cell = false;
-        elem.classList.remove("end");
-        if(path_exists(this)){
-          let {x, y} = this.neighbors.find(n => getCell(n.x, n.y).path);
-          getCell(x, y).path = false;
-          getCellElem(x, y).classList.remove("path");
-          getCell(x, y).end_cell = true;
-          getCellElem(x, y).classList.add("end");
-        }
-
-      }
     }
-  }
-
-  function tempFilter(n) {
-    let is_not_wall = !getCell(n.x, n.y).wall;
-    let is_hor_neighbor = n.direction === "N" || n.direction === "E" || n.direction === "S" || n.direction === "W";
-    return is_not_wall && is_hor_neighbor;
   }
 
   function build_neighbor(x, y, connection_cost, direction) {
-    return {x:x, y:y, connection_cost:connection_cost, direction:direction}
+    return {x, y, connection_cost, direction};
   }
 
   function getCellConnectionDirection(dir_x, dir_y) {
@@ -217,14 +170,6 @@
     return x >= 0 && x < cols && y >= 0 && y < rows;
   }
 
-  function resetChecked() {
-    for(let x = 0; x < rows; x++) {
-      for(let y = 0; y < cols; y++) {
-        getCell(x, y).checked = false;
-      }
-    }
-  }
-
   function resetSignal(resetNeighbors) {
     for(let x = 0; x < rows; x++) {
       for(let y = 0; y < cols; y++) {
@@ -264,7 +209,6 @@
     if (startLocated) {
         walk_path(startCell);
     }
-
   }
 
   function start() {
@@ -279,7 +223,7 @@
     document.getElementById("mouse_mode").disabled = true;
     document.getElementById("mouse_mode").classList.add("hidden");
     document.getElementById("mouse_label").classList.add("hidden");
-
+    document.getElementById("wallMessage").classList.add("notShown");
 
     if (mouse_mode) {
       Array.from(document.querySelectorAll(".cell")).forEach(cell_elem => {
@@ -342,32 +286,6 @@
     }
   }
 
-
-  function path_exists(root) {
-    let q = new Queue();
-    root.checked = true;
-    q.enqueue(root);
-    while(!q.isEmpty()) {
-      let cell = q.dequeue();
-      for(let n of cell.neighbors.reverse()){
-        let n_cell = getCell(n.x, n.y);
-        if(n_cell.start_cell){
-          return true;
-        }
-        if(!n_cell.checked && !n_cell.wall) {
-          n_cell.checked = true;
-          if (!n_cell.wall) {
-            q.enqueue(n_cell);
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-
-
-
   function draw_path(root) {
     let time = 1;
     let q = new Queue();
@@ -401,7 +319,7 @@
           n_cell.distance = cell.distance + n.connection_cost;
           if (visualization_mode) {
             sleep(time * 3).then(() => {
-              getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substr(0, 5);
+              getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
             });
           }
         }
@@ -411,7 +329,7 @@
           let elem = getCellElem(n_cell.x, n_cell.y);
           if (visualization_mode && !n_cell.start_cell) {
             sleep(time * 2).then(() => {
-              elem.textContent = (cell.distance + n.connection_cost).toString().substr(0, 5);
+              elem.textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
               elem.classList.add("visited");
             });
           }
@@ -463,10 +381,10 @@
       document.getElementById("start").classList.remove("hidden");
       buildGridInternal();
       gridBuilt = true;
+      document.getElementById("startMessage").classList.remove("hidden");
     }
   }
 
-  //TODO: unify these into one validation function that takes in "rows" or "cols" as arguments
   function testRowsInput(e) {
     const regex = /^\d{0,2}$/;
     if (
@@ -497,7 +415,6 @@
     }
   }
 
-  //TODO: unify these into one validation function that takes in "rows" or "cols" as arguments
   function testColsInput(e) {
     const regex = /^\d{0,2}$/;
     if (
@@ -566,7 +483,7 @@
         }
 
         col.appendChild(cell);
-        cell.addEventListener("mouseup", (e) => newCell.handleClick(e));
+        cell.addEventListener("click", () => newCell.handleClick());
         cell.draggable = false;
         cell.ondragstart = function () {
           return false;
