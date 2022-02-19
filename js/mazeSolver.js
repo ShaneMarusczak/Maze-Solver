@@ -12,6 +12,7 @@
 
   let settingStart = true;
   let settingEnd = false;
+  let settingWalls = false;
   let startSet = false;
   let endSet = false;
 
@@ -42,11 +43,9 @@
       this.end_cell = false;
       this.distance = 0;
       this.visited = false;
-      this.checked = false;
     }
 
     setNeighbors() {
-      this.neighbors = [];
       const dirs = [-1, 0, 1];
       for (let dir_x of dirs) {
         for (let dir_y of dirs) {
@@ -79,8 +78,8 @@
       return lowCell;
     }
 
-    handleClick() {
-      if (settingStart && !gameStarted) {
+    handleClick(e) {
+      if (settingStart && !gameStarted && !settingWalls && e.button === 0) {
         this.start_cell = true;
         getCellElem(this.x, this.y).classList.add("start");
         startCell = this;
@@ -89,7 +88,7 @@
         startSet = true;
         document.getElementById("startMessage").classList.add("hidden");
         document.getElementById("endMessage").classList.remove("hidden");
-      } else if (settingEnd && !gameStarted) {
+      } else if (settingEnd && !gameStarted && !settingWalls && e.button === 0) {
         endCell = this;
         this.end_cell = true;
         getCellElem(this.x, this.y).classList.add("end");
@@ -97,11 +96,15 @@
         endSet = true;
         document.getElementById("endMessage").classList.add("hidden");
         document.getElementById("wallMessage").classList.remove("hidden");
+        settingWalls = true;
         for (let x = 0; x < cols; x++) {
           for (let y = 0; y < rows; y++) {
             getCellElem(x, y).addEventListener("mouseover", onMouseOver);
           }
         }
+      } else if(!settingEnd && !settingStart && settingWalls && !gameStarted && e.button === 2){
+          this.wall = false;
+          getCellElem(this.x, this.y).classList.remove("wall");
       }
     }
   }
@@ -142,7 +145,7 @@
   }
 
   function onMouseOver(e) {
-    if (leftMouseButtonOnlyDown && !gameStarted) {
+    if (leftMouseButtonOnlyDown && !gameStarted && settingWalls) {
       let [x, y] = getXYFromCell(e.target);
       let cell = getCell(x, y);
       if (cell.start_cell || cell.end_cell || cell.wall) {
@@ -150,7 +153,6 @@
       }
       cell.wall = true;
       e.target.classList.add("wall");
-      // cell.neighbors = [];
     }
   }
 
@@ -170,7 +172,7 @@
     return x >= 0 && x < cols && y >= 0 && y < rows;
   }
 
-  function resetSignal(resetNeighbors) {
+  function resetSignal() {
     for(let x = 0; x < rows; x++) {
       for(let y = 0; y < cols; y++) {
         let to_check = getCell(x, y);
@@ -185,9 +187,6 @@
         to_check.visited = false;
         to_check.distance = 0;
         to_check_elem.textContent = "";
-        if (resetNeighbors) {
-          to_check.setNeighbors();
-        }
       }
     }
   }
@@ -199,7 +198,7 @@
     if (cell.wall || cell.start_cell ) {
       return;
     }
-    resetSignal(false);
+    resetSignal();
     cell.end_cell = true;
     cell_elem.classList.add("end");
 
@@ -211,10 +210,7 @@
     }
   }
 
-  function start() {
-    if (!startSet || !endSet || gameStarted) {
-      return;
-    }
+  function uiChangesOnStart(){
     document.getElementById("start").removeEventListener("click", start);
     document.getElementById("start").disabled = true;
     document.getElementById("visualization_mode").disabled = true;
@@ -224,6 +220,13 @@
     document.getElementById("mouse_mode").classList.add("hidden");
     document.getElementById("mouse_label").classList.add("hidden");
     document.getElementById("wallMessage").classList.add("notShown");
+  }
+
+  function start() {
+    if (!startSet || !endSet || gameStarted) {
+      return;
+    }
+    uiChangesOnStart();
 
     if (mouse_mode) {
       Array.from(document.querySelectorAll(".cell")).forEach(cell_elem => {
@@ -232,9 +235,10 @@
     }
 
     gameStarted = true;
+    settingWalls = false;
 
     draw_path(endCell);
-    if (!visualization_mode && !mouse_mode) {
+    if (!visualization_mode && !mouse_mode && startLocated) {
       fillInGaps();
     }
     disableHover();
@@ -245,6 +249,9 @@
       else {
         walk_path(startCell);
       }
+    } else if(!startLocated && !mouse_mode) {
+      document.getElementById("wallMessage").classList.add("hidden");
+      document.getElementById("noPathMessage").classList.remove("hidden");
     }
   }
 
@@ -483,7 +490,7 @@
         }
 
         col.appendChild(cell);
-        cell.addEventListener("click", () => newCell.handleClick());
+        cell.addEventListener("mouseup", (e) => newCell.handleClick(e));
         cell.draggable = false;
         cell.ondragstart = function () {
           return false;
