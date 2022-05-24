@@ -145,6 +145,7 @@
   }
 
   function onMouseOver(e) {
+    clearSelection();
     if (leftMouseButtonOnlyDown && !gameStarted && settingWalls) {
       let [x, y] = getXYFromCell(e.target);
       let cell = getCell(x, y);
@@ -222,10 +223,20 @@
     document.getElementById("wallMessage").classList.add("notShown");
   }
 
+  function clearSelection() {
+    if(window.getSelection) {
+      window.getSelection().removeAllRanges();
+    } else if(document.selection) {
+      document.selection.empty();
+    }
+  }
+
   function start() {
     if (!startSet || !endSet || gameStarted) {
       return;
     }
+
+    clearSelection();
     uiChangesOnStart();
 
     if (mouse_mode) {
