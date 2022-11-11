@@ -1,4 +1,4 @@
-(function () {
+(function() {
   let gameStarted = false;
   let gridBuilt = false;
 
@@ -15,6 +15,7 @@
   let settingWalls = false;
   let startSet = false;
   let endSet = false;
+  let foundInflectionPoints = false;
 
   let leftMouseButtonOnlyDown = false;
 
@@ -37,6 +38,7 @@
       this.x = x;
       this.y = y;
       this.neighbors = [];
+      this.cardinal_neighbors = [];
       this.wall = false;
       this.path = false;
       this.start_cell = false;
@@ -56,8 +58,8 @@
             let cardinal_direction = getCellConnectionDirection(dir_x, dir_y);
             if (dir_x === 0 || dir_y === 0) {
               this.neighbors.push(build_neighbor(this.x + dir_x, this.y + dir_y, 1, cardinal_direction));
-            }
-            else{
+              this.cardinal_neighbors.push(build_neighbor(this.x + dir_x, this.y + dir_y, 1, cardinal_direction));
+            } else {
               this.neighbors.push(build_neighbor(this.x + dir_x, this.y + dir_y, Math.sqrt(2), cardinal_direction));
             }
           }
@@ -70,7 +72,7 @@
       let lowCell = null
       for (let n of this.neighbors) {
         let cell = getCell(n.x, n.y);
-        if (cell.distance < low && cell.visited && !cell.wall){
+        if (cell.distance < low && cell.visited && !cell.wall) {
           low = cell.distance;
           lowCell = cell;
         }
@@ -102,40 +104,38 @@
             getCellElem(x, y).addEventListener("mouseover", onMouseOver);
           }
         }
-      } else if(!settingEnd && !settingStart && settingWalls && !gameStarted && e.button === 2){
-          this.wall = false;
-          getCellElem(this.x, this.y).classList.remove("wall");
+      } else if (!settingEnd && !settingStart && settingWalls && !gameStarted && e.button === 2) {
+        this.wall = false;
+        getCellElem(this.x, this.y).classList.remove("wall");
       }
     }
   }
 
   function build_neighbor(x, y, connection_cost, direction) {
-    return {x, y, connection_cost, direction};
+    return {
+      x,
+      y,
+      connection_cost,
+      direction
+    };
   }
 
   function getCellConnectionDirection(dir_x, dir_y) {
     if (dir_x === 0 && dir_y === -1) {
       return "N";
-    }
-    else if (dir_x === 1 && dir_y === -1) {
+    } else if (dir_x === 1 && dir_y === -1) {
       return "NE";
-    }
-    else if (dir_x === 1 && dir_y === 0) {
+    } else if (dir_x === 1 && dir_y === 0) {
       return "E";
-    }
-    else if (dir_x === 1 && dir_y === 1) {
+    } else if (dir_x === 1 && dir_y === 1) {
       return "SE";
-    }
-    else if (dir_x === 0 && dir_y === 1) {
+    } else if (dir_x === 0 && dir_y === 1) {
       return "S";
-    }
-    else if (dir_x === -1 && dir_y === 1) {
+    } else if (dir_x === -1 && dir_y === 1) {
       return "SW";
-    }
-    else if (dir_x === -1 && dir_y === 0) {
+    } else if (dir_x === -1 && dir_y === 0) {
       return "W";
-    }
-    else {
+    } else {
       return "NW";
     }
   }
@@ -174,8 +174,8 @@
   }
 
   function resetSignal() {
-    for(let x = 0; x < rows; x++) {
-      for(let y = 0; y < cols; y++) {
+    for (let x = 0; x < rows; x++) {
+      for (let y = 0; y < cols; y++) {
         let to_check = getCell(x, y);
         let to_check_elem = getCellElem(x, y);
         to_check.path = false;
@@ -196,7 +196,7 @@
     let cell_elem = e.target;
     let [x, y] = getXYFromCell(cell_elem);
     let cell = getCell(x, y);
-    if (cell.wall || cell.start_cell ) {
+    if (cell.wall || cell.start_cell) {
       return;
     }
     resetSignal();
@@ -207,11 +207,91 @@
 
     draw_path(endCell);
     if (startLocated) {
-        walk_path(startCell);
+      walk_path(startCell);
     }
   }
 
-  function uiChangesOnStart(){
+  function check(s1, s2) {
+    var map = new Map();
+    for (var i = 0; i < s1.length; i++) {
+      if (map.has(s1[i].charCodeAt(0))) {
+        map[s1[i].charCodeAt(0)]++;
+      } else {
+        map[s1[i].charCodeAt(0)] = 1;
+      }
+    }
+    for (var i = 0; i < s2.length; i++)
+      if (map[s2[i].charCodeAt(0)] > 0)
+        return true;
+    return false;
+  }
+
+  function findInflectionPoints() {
+    if (!gameStarted || foundInflectionPoints) return;
+
+    let directions = [];
+    let startDirections = [];
+    for (let x = 0; x < rows; x++) {
+      directions.push([]);
+      startDirections.push([]);
+      for (let y = 0; y < cols; y++) {
+        resetSignal();
+        let cell = getCell(x, y);
+        if (cell.wall) {
+          directions[x].push("");
+          startDirections[x].push("");
+          continue;
+        };
+        draw_path(cell);
+        walk_path(startCell);
+        let pathCell;
+        for (let n of cell.neighbors) {
+          let nC = getCell(n.x, n.y);
+          if (nC.path) {
+            pathCell = n;
+            break;
+          }
+        }
+        if (pathCell === null || typeof pathCell === "undefined") {
+          directions[x].push("");
+          startDirections[x].push("");
+          continue;
+        };
+        directions[x].push(pathCell.direction);
+        const startCellPathStartCell = startCell.getLowestDistanceNeighbor();
+        for (let n of startCell.neighbors) {
+          if (n.x === startCellPathStartCell.x && n.y === startCellPathStartCell.y) {
+            startDirections[x].push(n.direction);
+            break;
+          }
+        }
+      }
+    }
+
+    for (let x = 0; x < rows; x++) {
+      for (let y = 0; y < cols; y++) {
+        let cell = getCell(x, y);
+        let this_cell_dir = directions[x][y];
+        let this_cell_s_dir = startDirections[x][y];
+        if (cell.wall || this_cell_dir === "" || this_cell_s_dir === "") continue;
+        for (let n of cell.cardinal_neighbors) {
+          let n_dir = directions[n.x][n.y];
+          let s_dir = startDirections[n.x][n.y];
+          if (n_dir === "" || s_dir === "") continue;
+          if (!check(this_cell_dir, n_dir) || (this_cell_dir !== n_dir && this_cell_dir.length === n_dir.length)) {
+            getCellElem(x, y).classList.add("inflection_point");
+            getCellElem(n.x, n.y).classList.add("inflection_point");
+          } else if (!check(this_cell_s_dir, s_dir) || (this_cell_s_dir !== s_dir && this_cell_s_dir.length === s_dir.length)) {
+            getCellElem(x, y).classList.add("inflection_point");
+            getCellElem(n.x, n.y).classList.add("inflection_point");
+          }
+        }
+      }
+    }
+    foundInflectionPoints = true;
+  }
+
+  function uiChangesOnStart() {
     document.getElementById("start").removeEventListener("click", start);
     document.getElementById("start").disabled = true;
     document.getElementById("visualization_mode").disabled = true;
@@ -224,9 +304,9 @@
   }
 
   function clearSelection() {
-    if(window.getSelection) {
+    if (window.getSelection) {
       window.getSelection().removeAllRanges();
-    } else if(document.selection) {
+    } else if (document.selection) {
       document.selection.empty();
     }
   }
@@ -241,8 +321,9 @@
 
     if (mouse_mode) {
       Array.from(document.querySelectorAll(".cell")).forEach(cell_elem => {
-          cell_elem.addEventListener("mouseover", moveEndCellToMouse);
+        cell_elem.addEventListener("mouseover", moveEndCellToMouse);
       });
+      document.getElementById("inflection").classList.remove("hidden");
     }
 
     gameStarted = true;
@@ -254,20 +335,19 @@
     }
     disableHover();
     if (startLocated) {
-      if (visualization_mode){
-        sleep(rows * cols * 2.5).then(() => walk_path(startCell));
-      }
-      else {
+      if (visualization_mode) {
+        sleep(rows * cols).then(() => walk_path(startCell));
+      } else {
         walk_path(startCell);
       }
-    } else if(!startLocated && !mouse_mode) {
+    } else if (!startLocated && !mouse_mode) {
       document.getElementById("wallMessage").classList.add("hidden");
       document.getElementById("noPathMessage").classList.remove("hidden");
     }
   }
 
   function disableHover() {
-    for(let x = 0; x < rows; x++) {
+    for (let x = 0; x < rows; x++) {
       for (let y = 0; y < cols; y++) {
         getCellElem(x, y).classList.remove("cell_hover");
       }
@@ -275,12 +355,12 @@
   }
 
   function fillInGaps() {
-    for(let x = 0; x < rows; x++) {
+    for (let x = 0; x < rows; x++) {
       for (let y = 0; y < cols; y++) {
         let to_check = getCell(x, y);
         if (!to_check.visited) {
           to_check.wall = true;
-          getCellElem(x,y).classList.add("wall");
+          getCellElem(x, y).classList.add("wall");
         }
       }
     }
@@ -288,18 +368,17 @@
 
   function walk_path(root) {
     root.path = true;
-    if(root.distance === 0) {
+    if (root.distance === 0) {
       return;
     }
-    if(!root.start_cell){
+    if (!root.start_cell) {
       getCellElem(root.x, root.y).classList.remove("visited");
       getCellElem(root.x, root.y).classList.add("path");
     }
 
-    if (visualization_mode && !mouse_mode){
+    if (visualization_mode && !mouse_mode) {
       sleep(gameSpeed).then(() => walk_path(root.getLowestDistanceNeighbor()));
-    }
-    else {
+    } else {
       walk_path(root.getLowestDistanceNeighbor());
     }
   }
@@ -309,47 +388,50 @@
     let q = new Queue();
     root.visited = true;
     q.enqueue(root);
-    while(!q.isEmpty()) {
+    while (!q.isEmpty()) {
       time++;
       let cell = q.dequeue();
-      for(let n of cell.neighbors.reverse()){
+      for (let n of cell.neighbors.reverse()) {
         let n_cell = getCell(n.x, n.y);
-        if (n.direction === "NE" && checkCorner("N","E", cell, "NE")) {
+        if (n.direction === "NE" && checkCorner("N", "E", cell, "NE")) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
+          continue;
+        } else if (n.direction === "SE" && checkCorner("S", "E", cell, "SE")) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
+          continue;
+        } else if (n.direction === "SW" && checkCorner("S", "W", cell, "SW")) {
+          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
+          continue;
+        } else if (n.direction === "NW" && checkCorner("N", "W", cell, "NW")) {
           cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
           continue;
         }
-        else if (n.direction === "SE" && checkCorner("S", "E", cell, "SE")) {
-          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
-          continue;
-        }
-        else if (n.direction === "SW" && checkCorner("S", "W", cell, "SW")) {
-          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
-          continue;
-        }
-        else if (n.direction === "NW" && checkCorner("N", "W", cell, "NW")) {
-          cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
-          continue;
-        }
-        if(n_cell.start_cell){
+        if (n_cell.start_cell) {
           startLocated = true;
         }
-        if (n_cell.distance > cell.distance + n.connection_cost && n_cell.visited){
+        if (n_cell.distance > cell.distance + n.connection_cost && n_cell.visited) {
           n_cell.distance = cell.distance + n.connection_cost;
           if (visualization_mode) {
-            sleep(time * 3).then(() => {
+            sleep(time + 30).then(() => {
               getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
             });
+          } else if (n_cell.start_cell && mouse_mode) {
+            getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
           }
         }
-        if(!n_cell.visited && !n_cell.wall) {
+        if (!n_cell.visited && !n_cell.wall) {
           n_cell.visited = true;
           n_cell.distance = cell.distance + n.connection_cost;
           let elem = getCellElem(n_cell.x, n_cell.y);
-          if (visualization_mode && !n_cell.start_cell) {
-            sleep(time * 2).then(() => {
+          if (visualization_mode) {
+            sleep(time + 30).then(() => {
               elem.textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
-              elem.classList.add("visited");
+              if (!n_cell.start_cell) {
+                elem.classList.add("visited");
+              }
             });
+          } else if (n_cell.start_cell && mouse_mode) {
+            elem.textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
           }
           if (!n_cell.wall) {
             q.enqueue(n_cell);
@@ -364,7 +446,7 @@
     let cell_1 = null;
     let cell_2 = null;
     let cell_d = null;
-    for(let n of c.neighbors) {
+    for (let n of c.neighbors) {
       if (n.direction === n_1) {
         cell_1 = getCell(n.x, n.y);
       }
@@ -378,7 +460,7 @@
     if (cell_1 === null || cell_2 === null || cell_d === null) {
       return false;
     }
-    if(cell_1.wall && cell_2.wall)  {
+    if (cell_1.wall && cell_2.wall) {
       return !cell_d.wall;
     }
     return false;
@@ -475,7 +557,7 @@
       col.id = "col-" + x;
       col.classList.add("col");
       col.draggable = false;
-      col.ondragstart = function () {
+      col.ondragstart = function() {
         return false;
       };
       gameBoard_UI.appendChild(col);
@@ -488,31 +570,29 @@
         cell.classList.add("cell");
         cell.classList.add("cell_hover");
         if (cols * rows < 25 * 25) {
-            cell.classList.add("large_cell");
-        }
-        else if (cols * rows < 40 * 40) {
+          cell.classList.add("large_cell");
+        } else if (cols * rows < 40 * 40) {
           cell.classList.add("medium_cell");
-        }
-        else if (cols * rows < 60 * 60) {
+        } else if (cols * rows < 60 * 60) {
           cell.classList.add("small_cell");
-        }
-        else {
+        } else {
           cell.classList.add("x-small_cell");
         }
 
         col.appendChild(cell);
         cell.addEventListener("mouseup", (e) => newCell.handleClick(e));
         cell.draggable = false;
-        cell.ondragstart = function () {
+        cell.ondragstart = function() {
           return false;
         };
       }
     }
   }
 
-  (function () {
+  (function() {
     document.getElementById("start").addEventListener("click", start);
     document.getElementById("buildGrid").addEventListener("click", buildGrid);
+    document.getElementById("inflection").addEventListener("click", findInflectionPoints);
 
     document.getElementById("visualization_mode").addEventListener("input", () => {
       visualization_mode = !visualization_mode;
@@ -522,7 +602,7 @@
         mouse_mode = false;
       }
     });
-    
+
     document.getElementById("visualization_mode").checked = false;
 
     document.getElementById("mouse_mode").addEventListener("input", () => {
@@ -546,12 +626,12 @@
     document.getElementById("start").disabled = true;
     document.oncontextmenu = () => false;
     document.draggable = false;
-    document.ondragstart = function () {
+    document.ondragstart = function() {
       return false;
     }
 
     gameBoard_UI.draggable = false;
-    gameBoard_UI.ondragstart = function () {
+    gameBoard_UI.ondragstart = function() {
       return false;
     }
   })();
@@ -562,15 +642,15 @@
     }
   }
 
-  Queue.prototype.enqueue = function (e) {
+  Queue.prototype.enqueue = function(e) {
     this.elements.push(e);
   };
 
-  Queue.prototype.dequeue = function () {
+  Queue.prototype.dequeue = function() {
     return this.elements.shift();
   };
 
-  Queue.prototype.isEmpty = function () {
+  Queue.prototype.isEmpty = function() {
     return this.elements.length === 0;
   };
 

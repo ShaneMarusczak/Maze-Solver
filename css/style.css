@@ -170,10 +170,24 @@ button {
 }
 
 .visited {
-  background-color: rgba(57,255,20, .2);
+  background-color: rgba(57, 255, 20, .2);
 }
 
 #visualization_mode {
   margin-right: 7px;
 }
 
+.inflection_point {
+  position: relative;
+}
+
+.inflection_point::after {
+  color: blue;
+  content: "•";
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
