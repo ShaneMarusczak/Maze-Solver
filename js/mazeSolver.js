@@ -5,10 +5,10 @@
   let rowsValid = true;
   let colsValid = true;
 
-  let gameSpeed = 200;
+  const gameSpeed = 200;
 
-  let rows = 30;
-  let cols = 30;
+  const rows = 30;
+  const cols = 30;
 
   let settingStart = true;
   let settingEnd = false;
