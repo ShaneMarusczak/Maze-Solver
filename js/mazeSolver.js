@@ -1,37 +1,71 @@
 (function() {
-  let gameStarted = false;
-  let gridBuilt = false;
+  // Centralized state object
+  const state = {
+    phase: 'init', // 'init' | 'gridBuilt' | 'settingStart' | 'settingEnd' | 'settingWalls' | 'solving' | 'complete'
+    rows: 30,
+    cols: 30,
+    rowsValid: true,
+    colsValid: true,
+    visualizationMode: false,
+    mouseMode: false,
+    leftMouseButtonDown: false,
+    startLocated: false,
+    foundInflectionPoints: false,
+    startCell: null,
+    endCell: null,
+    gameSpeed: 200
+  };
 
-  let rowsValid = true;
-  let colsValid = true;
-
-  let gameSpeed = 200;
-
-  let rows = 30;
-  let cols = 30;
-
-  let settingStart = true;
-  let settingEnd = false;
-  let settingWalls = false;
-  let startSet = false;
-  let endSet = false;
-  let foundInflectionPoints = false;
-
-  let leftMouseButtonOnlyDown = false;
-
-  let visualization_mode = false;
-
-  let mouse_mode = false;
-
-  let startLocated = false;
-
-  let startCell, endCell;
+  // Direction offset map for O(1) neighbor lookups
+  const DIRECTION_OFFSETS = {
+    N:  { x:  0, y: -1 },
+    NE: { x:  1, y: -1 },
+    E:  { x:  1, y:  0 },
+    SE: { x:  1, y:  1 },
+    S:  { x:  0, y:  1 },
+    SW: { x: -1, y:  1 },
+    W:  { x: -1, y:  0 },
+    NW: { x: -1, y: -1 }
+  };
 
   const gameBoard = [];
 
   const gameBoard_UI = document.getElementById("gameBoard_UI");
   const rowsInput = document.getElementById("rowsInput");
   const colsInput = document.getElementById("colsInput");
+
+  // O(1) Queue implementation using head pointer
+  class Queue {
+    constructor() {
+      this.elements = [];
+      this.head = 0;
+    }
+
+    enqueue(e) {
+      this.elements.push(e);
+    }
+
+    dequeue() {
+      if (this.isEmpty()) return undefined;
+      const item = this.elements[this.head];
+      this.head++;
+
+      // Periodically clean up to prevent memory bloat
+      if (this.head > 1000 && this.head > this.elements.length / 2) {
+        this.elements = this.elements.slice(this.head);
+        this.head = 0;
+      }
+      return item;
+    }
+
+    isEmpty() {
+      return this.head >= this.elements.length;
+    }
+
+    length() {
+      return this.elements.length - this.head;
+    }
+  }
 
   class Cell {
     constructor(x, y) {
@@ -69,7 +103,7 @@
 
     getLowestDistanceNeighbor() {
       let low = Infinity;
-      let lowCell = null
+      let lowCell = null;
       for (let n of this.neighbors) {
         let cell = getCell(n.x, n.y);
         if (cell.distance < low && cell.visited && !cell.wall) {
@@ -81,30 +115,26 @@
     }
 
     handleClick(e) {
-      if (settingStart && !gameStarted && !settingWalls && e.button === 0) {
+      if (state.phase === 'settingStart' && e.button === 0) {
         this.start_cell = true;
         getCellElem(this.x, this.y).classList.add("start");
-        startCell = this;
-        settingStart = false;
-        settingEnd = true;
-        startSet = true;
+        state.startCell = this;
+        state.phase = 'settingEnd';
         document.getElementById("startMessage").classList.add("hidden");
         document.getElementById("endMessage").classList.remove("hidden");
-      } else if (settingEnd && !gameStarted && !settingWalls && e.button === 0) {
-        endCell = this;
+      } else if (state.phase === 'settingEnd' && e.button === 0) {
+        state.endCell = this;
         this.end_cell = true;
         getCellElem(this.x, this.y).classList.add("end");
-        settingEnd = false;
-        endSet = true;
+        state.phase = 'settingWalls';
         document.getElementById("endMessage").classList.add("hidden");
         document.getElementById("wallMessage").classList.remove("hidden");
-        settingWalls = true;
-        for (let x = 0; x < cols; x++) {
-          for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          for (let y = 0; y < state.rows; y++) {
             getCellElem(x, y).addEventListener("mouseover", onMouseOver);
           }
         }
-      } else if (!settingEnd && !settingStart && settingWalls && !gameStarted && e.button === 2) {
+      } else if (state.phase === 'settingWalls' && e.button === 2) {
         this.wall = false;
         getCellElem(this.x, this.y).classList.remove("wall");
       }
@@ -146,7 +176,7 @@
 
   function onMouseOver(e) {
     clearSelection();
-    if (leftMouseButtonOnlyDown && !gameStarted && settingWalls) {
+    if (state.leftMouseButtonDown && state.phase === 'settingWalls') {
       let [x, y] = getXYFromCell(e.target);
       let cell = getCell(x, y);
       if (cell.start_cell || cell.end_cell || cell.wall) {
@@ -170,12 +200,12 @@
   }
 
   function validPosition(x, y) {
-    return x >= 0 && x < cols && y >= 0 && y < rows;
+    return x >= 0 && x < state.cols && y >= 0 && y < state.rows;
   }
 
   function resetSignal() {
-    for (let x = 0; x < rows; x++) {
-      for (let y = 0; y < cols; y++) {
+    for (let x = 0; x < state.rows; x++) {
+      for (let y = 0; y < state.cols; y++) {
         let to_check = getCell(x, y);
         let to_check_elem = getCellElem(x, y);
         to_check.path = false;
@@ -203,92 +233,52 @@
     cell.end_cell = true;
     cell_elem.classList.add("end");
 
-    endCell = cell;
+    state.endCell = cell;
 
-    draw_path(endCell);
-    if (startLocated) {
-      walk_path(startCell);
+    draw_path(state.endCell);
+    if (state.startLocated) {
+      walk_path(state.startCell);
     }
   }
 
-  function check(s1, s2) {
-    var map = new Map();
-    for (var i = 0; i < s1.length; i++) {
-      if (map.has(s1[i].charCodeAt(0))) {
-        map[s1[i].charCodeAt(0)]++;
-      } else {
-        map[s1[i].charCodeAt(0)] = 1;
-      }
-    }
-    for (var i = 0; i < s2.length; i++)
-      if (map[s2[i].charCodeAt(0)] > 0)
-        return true;
-    return false;
-  }
-
+  // O(n) inflection point detection - analyzes the solved path directly
   function findInflectionPoints() {
-    if (!gameStarted || foundInflectionPoints) return;
+    if (state.phase !== 'solving' && state.phase !== 'complete') return;
+    if (state.foundInflectionPoints) return;
 
-    let directions = [];
-    let startDirections = [];
-    for (let x = 0; x < rows; x++) {
-      directions.push([]);
-      startDirections.push([]);
-      for (let y = 0; y < cols; y++) {
-        resetSignal();
-        let cell = getCell(x, y);
-        if (cell.wall) {
-          directions[x].push("");
-          startDirections[x].push("");
-          continue;
-        };
-        draw_path(cell);
-        walk_path(startCell);
-        let pathCell;
-        for (let n of cell.neighbors) {
-          let nC = getCell(n.x, n.y);
-          if (nC.path) {
-            pathCell = n;
-            break;
-          }
-        }
-        if (pathCell === null || typeof pathCell === "undefined") {
-          directions[x].push("");
-          startDirections[x].push("");
-          continue;
-        };
-        directions[x].push(pathCell.direction);
-        const startCellPathStartCell = startCell.getLowestDistanceNeighbor();
-        for (let n of startCell.neighbors) {
-          if (n.x === startCellPathStartCell.x && n.y === startCellPathStartCell.y) {
-            startDirections[x].push(n.direction);
-            break;
-          }
-        }
+    // Collect path cells in order from start to end
+    const pathCells = [];
+    let current = state.startCell;
+
+    while (current && current.distance > 0) {
+      pathCells.push(current);
+      current = current.getLowestDistanceNeighbor();
+    }
+    if (current) pathCells.push(current); // end cell
+
+    // Need at least 3 cells to detect direction changes
+    if (pathCells.length < 3) {
+      state.foundInflectionPoints = true;
+      return;
+    }
+
+    // Walk the path and detect direction changes
+    for (let i = 1; i < pathCells.length - 1; i++) {
+      const prev = pathCells[i - 1];
+      const curr = pathCells[i];
+      const next = pathCells[i + 1];
+
+      // Calculate direction vectors
+      const dir1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+      const dir2 = { x: next.x - curr.x, y: next.y - curr.y };
+
+      // If direction changed, it's an inflection point
+      if (dir1.x !== dir2.x || dir1.y !== dir2.y) {
+        getCellElem(curr.x, curr.y).classList.add("inflection_point");
       }
     }
 
-    for (let x = 0; x < rows; x++) {
-      for (let y = 0; y < cols; y++) {
-        let cell = getCell(x, y);
-        let this_cell_dir = directions[x][y];
-        let this_cell_s_dir = startDirections[x][y];
-        if (cell.wall || this_cell_dir === "" || this_cell_s_dir === "") continue;
-        for (let n of cell.cardinal_neighbors) {
-          let n_dir = directions[n.x][n.y];
-          let s_dir = startDirections[n.x][n.y];
-          if (n_dir === "" || s_dir === "") continue;
-          if (!check(this_cell_dir, n_dir) || (this_cell_dir !== n_dir && this_cell_dir.length === n_dir.length)) {
-            getCellElem(x, y).classList.add("inflection_point");
-            getCellElem(n.x, n.y).classList.add("inflection_point");
-          } else if (!check(this_cell_s_dir, s_dir) || (this_cell_s_dir !== s_dir && this_cell_s_dir.length === s_dir.length)) {
-            getCellElem(x, y).classList.add("inflection_point");
-            getCellElem(n.x, n.y).classList.add("inflection_point");
-          }
-        }
-      }
-    }
-    foundInflectionPoints = true;
+    state.foundInflectionPoints = true;
   }
 
   function uiChangesOnStart() {
@@ -312,51 +302,50 @@
   }
 
   function start() {
-    if (!startSet || !endSet || gameStarted) {
+    if (state.phase !== 'settingWalls') {
       return;
     }
 
     clearSelection();
     uiChangesOnStart();
 
-    if (mouse_mode) {
+    if (state.mouseMode) {
       Array.from(document.querySelectorAll(".cell")).forEach(cell_elem => {
         cell_elem.addEventListener("mouseover", moveEndCellToMouse);
       });
       document.getElementById("inflection").classList.remove("hidden");
     }
 
-    gameStarted = true;
-    settingWalls = false;
+    state.phase = 'solving';
 
-    draw_path(endCell);
-    if (!visualization_mode && !mouse_mode && startLocated) {
+    draw_path(state.endCell);
+    if (!state.visualizationMode && !state.mouseMode && state.startLocated) {
       fillInGaps();
     }
     disableHover();
-    if (startLocated) {
-      if (visualization_mode) {
-        sleep(rows * cols).then(() => walk_path(startCell));
+    if (state.startLocated) {
+      if (state.visualizationMode) {
+        sleep(state.rows * state.cols).then(() => walk_path(state.startCell));
       } else {
-        walk_path(startCell);
+        walk_path(state.startCell);
       }
-    } else if (!startLocated && !mouse_mode) {
+    } else if (!state.startLocated && !state.mouseMode) {
       document.getElementById("wallMessage").classList.add("hidden");
       document.getElementById("noPathMessage").classList.remove("hidden");
     }
   }
 
   function disableHover() {
-    for (let x = 0; x < rows; x++) {
-      for (let y = 0; y < cols; y++) {
+    for (let x = 0; x < state.rows; x++) {
+      for (let y = 0; y < state.cols; y++) {
         getCellElem(x, y).classList.remove("cell_hover");
       }
     }
   }
 
   function fillInGaps() {
-    for (let x = 0; x < rows; x++) {
-      for (let y = 0; y < cols; y++) {
+    for (let x = 0; x < state.rows; x++) {
+      for (let y = 0; y < state.cols; y++) {
         let to_check = getCell(x, y);
         if (!to_check.visited) {
           to_check.wall = true;
@@ -369,6 +358,7 @@
   function walk_path(root) {
     root.path = true;
     if (root.distance === 0) {
+      state.phase = 'complete';
       return;
     }
     if (!root.start_cell) {
@@ -376,8 +366,8 @@
       getCellElem(root.x, root.y).classList.add("path");
     }
 
-    if (visualization_mode && !mouse_mode) {
-      sleep(gameSpeed).then(() => walk_path(root.getLowestDistanceNeighbor()));
+    if (state.visualizationMode && !state.mouseMode) {
+      sleep(state.gameSpeed).then(() => walk_path(root.getLowestDistanceNeighbor()));
     } else {
       walk_path(root.getLowestDistanceNeighbor());
     }
@@ -391,7 +381,7 @@
     while (!q.isEmpty()) {
       time++;
       let cell = q.dequeue();
-      for (let n of cell.neighbors.reverse()) {
+      for (let n of cell.neighbors.slice().reverse()) {
         let n_cell = getCell(n.x, n.y);
         if (n.direction === "NE" && checkCorner("N", "E", cell, "NE")) {
           cell.neighbors.splice(cell.neighbors.indexOf(n), 1);
@@ -407,15 +397,15 @@
           continue;
         }
         if (n_cell.start_cell) {
-          startLocated = true;
+          state.startLocated = true;
         }
         if (n_cell.distance > cell.distance + n.connection_cost && n_cell.visited) {
           n_cell.distance = cell.distance + n.connection_cost;
-          if (visualization_mode) {
+          if (state.visualizationMode) {
             sleep(time + 30).then(() => {
               getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
             });
-          } else if (n_cell.start_cell && mouse_mode) {
+          } else if (n_cell.start_cell && state.mouseMode) {
             getCellElem(n_cell.x, n_cell.y).textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
           }
         }
@@ -423,14 +413,14 @@
           n_cell.visited = true;
           n_cell.distance = cell.distance + n.connection_cost;
           let elem = getCellElem(n_cell.x, n_cell.y);
-          if (visualization_mode) {
+          if (state.visualizationMode) {
             sleep(time + 30).then(() => {
               elem.textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
               if (!n_cell.start_cell) {
                 elem.classList.add("visited");
               }
             });
-          } else if (n_cell.start_cell && mouse_mode) {
+          } else if (n_cell.start_cell && state.mouseMode) {
             elem.textContent = (cell.distance + n.connection_cost).toString().substring(0, 4);
           }
           if (!n_cell.wall) {
@@ -441,29 +431,25 @@
     }
   }
 
-  function checkCorner(n_1, n_2, c, d) {
-    //TODO: I FEEL LIKE THIS CAN BE SIMPLIFIED SOMEHOW, DO THIS TODO LAST
-    let cell_1 = null;
-    let cell_2 = null;
-    let cell_d = null;
-    for (let n of c.neighbors) {
-      if (n.direction === n_1) {
-        cell_1 = getCell(n.x, n.y);
-      }
-      if (n.direction === n_2) {
-        cell_2 = getCell(n.x, n.y);
-      }
-      if (n.direction === d) {
-        cell_d = getCell(n.x, n.y)
-      }
-    }
-    if (cell_1 === null || cell_2 === null || cell_d === null) {
+  // Simplified checkCorner using DIRECTION_OFFSETS for O(1) lookups
+  function checkCorner(perpDir1, perpDir2, cell, diagDir) {
+    const off1 = DIRECTION_OFFSETS[perpDir1];
+    const off2 = DIRECTION_OFFSETS[perpDir2];
+    const offD = DIRECTION_OFFSETS[diagDir];
+
+    // Check bounds
+    if (!validPosition(cell.x + off1.x, cell.y + off1.y) ||
+        !validPosition(cell.x + off2.x, cell.y + off2.y) ||
+        !validPosition(cell.x + offD.x, cell.y + offD.y)) {
       return false;
     }
-    if (cell_1.wall && cell_2.wall) {
-      return !cell_d.wall;
-    }
-    return false;
+
+    const cell1 = getCell(cell.x + off1.x, cell.y + off1.y);
+    const cell2 = getCell(cell.x + off2.x, cell.y + off2.y);
+    const cellD = getCell(cell.x + offD.x, cell.y + offD.y);
+
+    // Block diagonal if both perpendicular cells are walls (and diagonal isn't)
+    return cell1.wall && cell2.wall && !cellD.wall;
   }
 
   function getXYFromCell(cell) {
@@ -471,87 +457,54 @@
   }
 
   function buildGrid(e) {
-    if (!gameStarted && rowsValid && colsValid && !gridBuilt) {
-      rows = Number(rowsInput.value);
-      cols = Number(colsInput.value);
+    if (state.phase === 'init' && state.rowsValid && state.colsValid) {
+      state.rows = Number(rowsInput.value);
+      state.cols = Number(colsInput.value);
       rowsInput.disabled = true;
       colsInput.disabled = true;
       e.target.classList.add("hidden");
       document.getElementById("start").disabled = false;
       document.getElementById("start").classList.remove("hidden");
       buildGridInternal();
-      gridBuilt = true;
+      state.phase = 'settingStart';
       document.getElementById("startMessage").classList.remove("hidden");
     }
   }
 
-  function testRowsInput(e) {
-    const regex = /^\d{0,2}$/;
-    if (
-      regex.test(e.target.value) &&
-      Number(e.target.value) <= 75 &&
-      Number(e.target.value) > 0 &&
-      e.target.value !== ""
-    ) {
-      rowsValid = true;
-      let elem = document.getElementById("invalidRows");
-      if (typeof elem != "undefined" && elem != null) {
-        elem.remove();
+  // Generic input validator factory
+  function createInputValidator(fieldName, validFlag, errorId) {
+    return function(e) {
+      const regex = /^\d{0,2}$/;
+      const value = e.target.value;
+      const num = Number(value);
+      const isValid = regex.test(value) && num > 0 && num <= 75 && value !== "";
+
+      if (isValid) {
+        state[validFlag] = true;
+        const elem = document.getElementById(errorId);
+        if (elem) elem.remove();
+      } else {
+        if (state[validFlag]) {
+          const message = document.createElement("p");
+          message.id = errorId;
+          message.textContent = `Valid range is 1-75 ${fieldName}`;
+          message.classList.add("bad");
+          document.getElementById("messages").prepend(message);
+        }
+        state[validFlag] = false;
       }
-    } else {
-      if (rowsValid) {
-        const message = document.createElement("p");
-        message.id = "invalidRows";
-        message.textContent = "Valid range is 1-75 rows";
-        message.classList.add("bad");
-        document
-          .getElementById("messages")
-          .insertBefore(
-            message,
-            document.getElementById("messages").firstChild
-          );
-      }
-      rowsValid = false;
-    }
+    };
   }
 
-  function testColsInput(e) {
-    const regex = /^\d{0,2}$/;
-    if (
-      regex.test(e.target.value) &&
-      Number(e.target.value) <= 75 &&
-      Number(e.target.value) > 0 &&
-      e.target.value !== ""
-    ) {
-      colsValid = true;
-      let elem = document.getElementById("invalidCols");
-      if (typeof elem != "undefined" && elem != null) {
-        elem.remove();
-      }
-    } else {
-      if (colsValid) {
-        const message = document.createElement("p");
-        message.id = "invalidCols";
-        message.textContent = "Valid range is 1-75 columns";
-        message.classList.add("bad");
-        document
-          .getElementById("messages")
-          .insertBefore(
-            message,
-            document.getElementById("messages").firstChild
-          );
-      }
-      colsValid = false;
-    }
-  }
+  const testRowsInput = createInputValidator("rows", "rowsValid", "invalidRows");
+  const testColsInput = createInputValidator("columns", "colsValid", "invalidCols");
 
   function setLeftButtonState(e) {
-    leftMouseButtonOnlyDown =
-      e.buttons === undefined ? e.which === 1 : e.buttons === 1;
+    state.leftMouseButtonDown = e.buttons === undefined ? e.which === 1 : e.buttons === 1;
   }
 
   function buildGridInternal() {
-    for (let x = 0; x < cols; x++) {
+    for (let x = 0; x < state.cols; x++) {
       gameBoard.push([]);
       const col = document.createElement("div");
       col.id = "col-" + x;
@@ -561,7 +514,7 @@
         return false;
       };
       gameBoard_UI.appendChild(col);
-      for (let y = 0; y < rows; y++) {
+      for (let y = 0; y < state.rows; y++) {
         const newCell = new Cell(x, y);
         gameBoard[x].push(newCell);
         gameBoard[x][y].setNeighbors();
@@ -569,11 +522,11 @@
         cell.id = getCellId(x, y);
         cell.classList.add("cell");
         cell.classList.add("cell_hover");
-        if (cols * rows < 25 * 25) {
+        if (state.cols * state.rows < 25 * 25) {
           cell.classList.add("large_cell");
-        } else if (cols * rows < 40 * 40) {
+        } else if (state.cols * state.rows < 40 * 40) {
           cell.classList.add("medium_cell");
-        } else if (cols * rows < 60 * 60) {
+        } else if (state.cols * state.rows < 60 * 60) {
           cell.classList.add("small_cell");
         } else {
           cell.classList.add("x-small_cell");
@@ -595,21 +548,21 @@
     document.getElementById("inflection").addEventListener("click", findInflectionPoints);
 
     document.getElementById("visualization_mode").addEventListener("input", () => {
-      visualization_mode = !visualization_mode;
+      state.visualizationMode = !state.visualizationMode;
 
-      if (visualization_mode) {
+      if (state.visualizationMode) {
         document.getElementById("mouse_mode").checked = false;
-        mouse_mode = false;
+        state.mouseMode = false;
       }
     });
 
     document.getElementById("visualization_mode").checked = false;
 
     document.getElementById("mouse_mode").addEventListener("input", () => {
-      mouse_mode = !mouse_mode;
-      if (mouse_mode) {
+      state.mouseMode = !state.mouseMode;
+      if (state.mouseMode) {
         document.getElementById("visualization_mode").checked = false;
-        visualization_mode = false;
+        state.visualizationMode = false;
       }
     });
 
@@ -628,34 +581,12 @@
     document.draggable = false;
     document.ondragstart = function() {
       return false;
-    }
+    };
 
     gameBoard_UI.draggable = false;
     gameBoard_UI.ondragstart = function() {
       return false;
-    }
+    };
   })();
-
-  class Queue {
-    constructor() {
-      this.elements = [];
-    }
-  }
-
-  Queue.prototype.enqueue = function(e) {
-    this.elements.push(e);
-  };
-
-  Queue.prototype.dequeue = function() {
-    return this.elements.shift();
-  };
-
-  Queue.prototype.isEmpty = function() {
-    return this.elements.length === 0;
-  };
-
-  Queue.prototype.length = function() {
-    return this.elements.length;
-  }
 
 })();
